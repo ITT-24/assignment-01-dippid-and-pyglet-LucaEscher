@@ -4,7 +4,7 @@ import pyglet
 from pyglet import shapes, clock
 import os
 
-#TODO: paddle size größer machen wenn top getroffen & increasing ball speed
+# TODO: increasing ball speed
 
 PORT = 5700
 sensor = SensorUDP(PORT)
@@ -19,6 +19,9 @@ batch = pyglet.graphics.Batch()
 score = 0
 time = GAME_TIME
 lost = False
+count_bricks = 40
+count_brick_hits = 0
+increase_speed = False
 
 # Generated with ChatGPT
 def seconds_to_minutes(seconds):
@@ -32,9 +35,14 @@ def euclidian_distance(x1, y1, x2, y2):
 
 
 def count_time(deltaTime):
-    global time
+    global time, player, ball
     time -= 1
     time_label.text = seconds_to_minutes(time)
+    
+    # decrease player width when time reaches half time
+    if time < GAME_TIME/2:
+        if player.shape.width > 30:
+            player.shape.width -= 20
 
 
 score_label = pyglet.text.Label(text=f'Score: {score}',
@@ -88,8 +96,8 @@ class Player():
             # check for borders
             if pos_x < 0:
                 pos_x = 0
-            elif pos_x > WINDOW_WIDTH - player.width:
-                pos_x = WINDOW_WIDTH - player.width
+            elif pos_x > WINDOW_WIDTH - player.shape.width:
+                pos_x = WINDOW_WIDTH - player.shape.width
         return pos_x
 
 
@@ -139,13 +147,20 @@ class Bricks():
     def update_bricks():
         for index, brick in enumerate(Bricks.bricks):
             if ball.check_collision_object(brick):
-                global score
+                global score, count_brick_hits, increase_speed
+                print(f'COUNT: {count_brick_hits} ')
                 score += brick.score
+                count_brick_hits += 1
                 ball.handle_brick_collision(index)
+                #increase ball speed every 5th block
+                if count_brick_hits == 4:
+                    count_brick_hits = 0
+                    increase_speed = True
 
 
 class Ball():
     RADIUS = 5
+    FRICTION = 0.75
 
     def __init__(self, x=184, y=100) -> None:
         self.x = 184
@@ -159,22 +174,28 @@ class Ball():
                                    batch=batch)
 
         # Ab hier von CHATGPT inspiriert und von mir verändert --------------------
-        self.vx = 100
-        self.vy = 100
+        self.vx = 80
+        self.vy = 80
 
     def update_ball(self, deltaTime):
-        self.shape.x += self.vx * deltaTime
-        self.shape.y += self.vy * deltaTime
-
-    # Check borders and reflect ball. If the ball touches the bottom -> gameo ober!
+        self.shape.x += self.vx * self.FRICTION * deltaTime
+        self.shape.y += self.vy * self.FRICTION * deltaTime
+        
+    def increase_ball_speed(self):
+        self.FRICTION += 0.15
+        
+    # Check borders and reflect ball. If the ball touches the bottom -> game over!
     def handle_collision_wall(self):
         # left and right
         if self.shape.x <= self.RADIUS or self.shape.x >= WINDOW_WIDTH - self.RADIUS:
             self.vx = -self.vx
 
-        # top
+        # top: decrease size of player if touched by player
         if self.shape.y >= WINDOW_HEIGHT - self.RADIUS:
             self.vy = -self.vy
+            # don't decrease size of player if already very small
+            if player.shape.width > 20:
+                player.shape.width -= 5
 
         # bottom
         if self.shape.y <= self.RADIUS:
@@ -185,30 +206,36 @@ class Ball():
     # --------------------------------------------------------------------------------
 
     def check_collision_object(self, other):
-        collision_distance = self.radius + other.height
+        collision_distance = self.radius + player.shape.height * 1.7
         # Calculation with the help of ChatGPT
         distance = euclidian_distance(self.shape.x, self.shape.y, other.shape.x + other.width/2, other.shape.y)
         return distance <= collision_distance
 
     def handle_player_collision(self):
         self.vy = self.vy * -1
+        self.vx += 1 * self.FRICTION
 
     def handle_brick_collision(self, index):
         self.vy = self.vy * -1
         del Bricks.bricks[index]
 
-
 @window.event
 def update(deltaTime):
     window.clear()
-    global player, ball, score, time, lost
-    Bricks.update_bricks()
+    global player, ball, score, time, lost, count_bricks, increase_speed
 
+    # Bricks handling
+    Bricks.update_bricks()
+    count_bricks = len(Bricks.bricks)
+    
     # player movement
     player.shape.x = player.update_player(deltaTime)
 
     # ball movement
     ball.update_ball(deltaTime)
+    if increase_speed:
+        ball.increase_ball_speed()
+        increase_speed = False
 
     # collision events
     if ball.check_collision_object(player):
@@ -217,7 +244,6 @@ def update(deltaTime):
     ball.handle_collision_wall()
 
     score_label.text = f'Score: {score}'
-
     batch.draw()
 
 
@@ -226,24 +252,35 @@ def on_key_press(symbol, modifiers):
     match(symbol):
         case pyglet.window.key.Q:
             os._exit(0)
+        case pyglet.window.key.Y:
+            global ball
+            ball.FRICTION += 0.15
         case pyglet.window.key.R:
             window.clear()
             clock.unschedule(game_over)
 
-            global score, time, lost
+            global score, time, lost, count_brick_hits
 
             score = 0
+            count_brick_hits = 0
             time = GAME_TIME
             lost = False
 
-            ball.shape.x = 184
-            ball.shape.y = 100
-            ball.vx = 100
-            ball.vy = 100
-
+            ball = Ball()
+            
             player.shape.x = 184
             player.shape.y = 50
-            game_start()
+            player.shape.width = 50
+
+            Bricks.bricks = []
+            Bricks.generate_bricks()
+            
+            clock.schedule_interval(update, update_interval)
+            clock.schedule_interval(count_time, 1)
+            clock.schedule_once(time_up, GAME_TIME)
+
+        case _:
+            print('This key is not supported!')
 
 
 @window.event
@@ -256,11 +293,11 @@ def game_over(deltaTime):
     window.clear()
     clock.unschedule(update)
     clock.unschedule(count_time)
-    global lost
+    global lost, count_bricks
 
     game_over_label = pyglet.text.Label(text='GAME OVER :(',
                                         font_name='ARIAL',
-                                        font_size=34,
+                                        font_size=30,
                                         bold=True,
                                         x=WINDOW_WIDTH//2, y=WINDOW_HEIGHT//2,
                                         anchor_x='center', anchor_y='center'
@@ -268,7 +305,7 @@ def game_over(deltaTime):
 
     congrats_label = pyglet.text.Label(text='Congratulations!',
                                        font_name='ARIAL',
-                                       font_size=34,
+                                       font_size=30,
                                        bold=True,
                                        x=WINDOW_WIDTH//2, y=WINDOW_HEIGHT//2,
                                        anchor_x='center', anchor_y='center'
@@ -286,7 +323,7 @@ def game_over(deltaTime):
                                     font_name='ARIAL',
                                     font_size=10,
                                     bold=True,
-                                    x=WINDOW_WIDTH//2, y=WINDOW_HEIGHT * 1/5,
+                                    x=WINDOW_WIDTH//2, y=WINDOW_HEIGHT * 1/4,
                                     anchor_x='center'
                                     )
 
@@ -297,22 +334,18 @@ def game_over(deltaTime):
 
     final_score_label.draw()
     retry_label.draw()
-
-
-def game_start():
-    Bricks.generate_bricks()
-
-    # update every 1/120 seconds to get 120 fps
-    update_interval = 1/120
-
-    clock.schedule_interval(update, update_interval)
-    clock.schedule_interval(count_time, 1)
-    clock.schedule_once(time_up, GAME_TIME)
+    count_bricks = 40
 
 
 if __name__ == '__main__':
     player = Player()
     ball = Ball()
+    Bricks.generate_bricks()
 
-    game_start()
+    # update every 1/120 seconds to get 120 fps
+    update_interval = 1/120
+    clock.schedule_interval(update, update_interval)
+    clock.schedule_interval(count_time, 1)
+    clock.schedule_once(time_up, GAME_TIME)
+    
     pyglet.app.run()
