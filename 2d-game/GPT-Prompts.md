@@ -1,4 +1,4 @@
-# CHATGPT hilfe zu zu viele Sensordaten
+# CHATGPT hilfe zu zu viele Sensordaten -> Hat doch ohne diesen Code funktioniert! -> Aus dem code dementsprechend entfernt
 
 rotation = float(sensor.get_value('rotation')['pitch'])
 

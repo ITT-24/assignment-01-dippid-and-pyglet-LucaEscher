@@ -28,3 +28,33 @@
 {'button_1': 1, 'button_2': 0, 'button_3': 1, 'accelerometer': {'x': -0.5556991462506135, 'y': -0.38239691771267864, 'z': -0.046771910446234854}}
 ```
 
+# Task 2 
+
+## Install requirements.txt
+```
+pip install -r requirements.txt
+```
+
+## Start the game
+```
+python3 2d-game/breakout.py
+```
+
+## Additional functions
+- Press Q to quit
+- Press A to delete bricks
+- Press S to speed up the ball
+- Press R to restart
+
+## Game Pictures
+
+### Game
+![Game](/pictures/breakout.png))
+
+### Winning screen
+![Win](/pictures/congratulations.png))
+
+### Losing screen
+![Lost](/pictures/game_over.png))
+
+
