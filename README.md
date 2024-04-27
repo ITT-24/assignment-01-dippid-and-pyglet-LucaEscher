@@ -49,12 +49,12 @@ python3 2d-game/breakout.py
 ## Game Pictures
 
 ### Game
-![Game](/pictures/breakout.png))
+![Game](/pictures/breakout.png)
 
 ### Winning screen
-![Win](/pictures/congratulations.png))
+![Win](/pictures/congratulations.png)
 
 ### Losing screen
-![Lost](/pictures/game_over.png))
+![Lost](/pictures/game_over.png)
 
 
